@@ -1,0 +1,57 @@
+# .github/workflows/remote-desktop.yml
+
+name: Remote Desktop with XRDP and SSH
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-remote-desktop:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install required packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xrdp xfce4 xfce4-goodies
+          sudo apt-get install -y openssh-server
+
+      - name: Configure XRDP
+        run: |
+          sudo systemctl enable xrdp
+          sudo systemctl start xrdp
+          echo xfce4-session > ~/.xsession
+
+      - name: Configure SSH
+        run: |
+          sudo systemctl enable ssh
+          sudo systemctl start ssh
+          ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+          cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+          echo "SSH Key (for client access):"
+          cat ~/.ssh/id_rsa
+
+      - name: Download ngrok
+        run: |
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list >/dev/null
+          sudo apt update && sudo apt install ngrok
+
+      - name: Start ngrok tunnel for SSH
+        env:
+          NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
+        run: |
+          ngrok config add-authtoken $NGROK_TOKEN
+          nohup ngrok tcp 22 --region=us &
+
+      - name: Start ngrok tunnel for RDP
+        env:
+          NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
+        run: |
+          nohup ngrok tcp 3389 --region=us &
+
+      - name: Display connection info
+        run: |
+          echo "Wait for ngrok tunnels to be ready..."
+          sleep 5  # Allow some time for ngrok to initialize
+          curl -s http://localhost:4040/api/tunnels | jq
