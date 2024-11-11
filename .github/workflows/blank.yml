@@ -1,0 +1,20 @@
+# .github/workflows/hello-world.yml
+
+name: Hello World Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  run-hello-world:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create hello.py file
+        run: |
+          echo 'print("Hello, World!")' > hello.py
+
+      - name: Run hello.py
+        run: python hello.py
